@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Habit Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #0f0f1a; color: #e0e0ff; min-height: 100vh; }
+
+/* Auth screen */
+#authScreen {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #0f0f1a, #1a1a3e);
+}
+.auth-box {
+  background: #141428; border: 1px solid #4a4aaa; border-radius: 16px;
+  padding: 40px; width: 100%; max-width: 400px; text-align: center;
+}
+.auth-box h2 { color: #c8b4ff; font-size: 1.8rem; margin-bottom: 8px; }
+.auth-box p { color: #8888cc; margin-bottom: 28px; font-size: 0.9rem; }
+.auth-tabs { display: flex; margin-bottom: 24px; border-radius: 8px; overflow: hidden; border: 1px solid #4a4aaa; }
+.auth-tab { flex: 1; padding: 10px; background: #1e1e3e; color: #8888cc; cursor: pointer; border: none; font-size: 0.95rem; }
+.auth-tab.active { background: #4a4aaa; color: #fff; }
+.auth-input {
+  width: 100%; padding: 12px 16px; margin-bottom: 12px;
+  background: #1e1e3e; border: 1px solid #4a4aaa; border-radius: 8px;
+  color: #e0e0ff; font-size: 1rem; outline: none; text-align: right;
+}
+.auth-input:focus { border-color: #8b5cf6; }
+.auth-btn {
+  width: 100%; padding: 12px; background: linear-gradient(135deg, #4a4aaa, #8b5cf6);
+  border: none; border-radius: 8px; color: #fff; font-size: 1rem; font-weight: bold;
+  cursor: pointer; margin-top: 4px;
+}
+.auth-btn:hover { opacity: 0.9; }
+.auth-error { color: #ff8888; font-size: 0.85rem; margin-top: 8px; min-height: 20px; }
+.auth-loading { color: #a090ff; font-size: 0.85rem; margin-top: 8px; }
+
+/* Main app */
+#mainApp { display: none; }
+
+.app-header {
+  background: linear-gradient(135deg, #1a1a3e 0%, #2d1b69 50%, #1a1a3e 100%);
+  padding: 20px 32px; display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 2px solid #4a4aaa;
+}
+.app-header h1 { font-size: 1.6rem; color: #c8b4ff; letter-spacing: 2px; }
+.user-info { display: flex; align-items: center; gap: 12px; }
+.user-email { color: #8888cc; font-size: 0.85rem; }
+.btn-logout { background: #2a1a3a; border: 1px solid #6a4a8a; color: #c8b4ff; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; }
+.btn-logout:hover { background: #4a2a6a; }
+
+.month-selector {
+  display: flex; justify-content: center; align-items: center; gap: 16px;
+  padding: 14px; background: #141428; border-bottom: 1px solid #2a2a5a;
+}
+.month-selector select, .month-selector input {
+  background: #1e1e3e; color: #e0e0ff; border: 1px solid #4a4aaa;
+  padding: 8px 14px; border-radius: 8px; font-size: 1rem; cursor: pointer;
+}
+.month-label { color: #a090ff; font-weight: bold; }
+
+.container { max-width: 1200px; margin: 0 auto; padding: 20px 16px; }
+
+.stats-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+.stat-card {
+  background: linear-gradient(135deg, #1e1e3e, #2a1a4e);
+  border: 1px solid #4a4aaa; border-radius: 12px; padding: 14px; text-align: center;
+}
+.stat-card .val { font-size: 1.8rem; font-weight: bold; color: #c8b4ff; }
+.stat-card .lbl { font-size: 0.78rem; color: #8888cc; margin-top: 4px; }
+
+.habits-manager {
+  background: #141428; border: 1px solid #2a2a5a; border-radius: 12px;
+  padding: 16px; margin-bottom: 20px;
+}
+.section-title { font-size: 1rem; font-weight: bold; color: #a090ff; margin-bottom: 12px; }
+.habit-list-edit { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.habit-edit-row {
+  display: flex; align-items: center; gap: 8px;
+  background: #1e1e3e; border-radius: 8px; padding: 8px 12px;
+}
+.habit-edit-row input {
+  flex: 1; background: transparent; border: none; color: #e0e0ff; font-size: 0.95rem; outline: none;
+}
+.habit-color { width: 26px; height: 26px; border-radius: 50%; cursor: pointer; border: 2px solid #4a4aaa; flex-shrink: 0; }
+.btn-remove { background: #3a1a1a; border: 1px solid #aa4444; color: #ff8888; border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 0.82rem; }
+.btn-remove:hover { background: #aa4444; color: #fff; }
+.btn-add { background: linear-gradient(135deg, #2a1a5e, #3d2b7a); border: 1px solid #6a5aaa; color: #c8b4ff; border-radius: 8px; padding: 8px 16px; cursor: pointer; font-size: 0.9rem; width: 100%; }
+.btn-add:hover { background: linear-gradient(135deg, #3d2b7a, #5a3aaa); }
+.btn-save-habits { background: linear-gradient(135deg, #1a4a2a, #2a7a3a); border: 1px solid #4aaa6a; color: #aaffcc; border-radius: 8px; padding: 8px 16px; cursor: pointer; font-size: 0.9rem; margin-top: 8px; width: 100%; }
+.btn-save-habits:hover { opacity: 0.9; }
+
+.tracker-section { margin-bottom: 20px; }
+.tracker-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid #2a2a5a; }
+table { width: 100%; border-collapse: collapse; min-width: 700px; }
+.week-header { padding: 6px 4px; text-align: center; font-size: 0.75rem; font-weight: bold; color: #c8b4ff; }
+.day-header { padding: 5px 2px; text-align: center; font-size: 0.7rem; color: #8888cc; }
+.habit-name-cell {
+  padding: 10px 14px; font-size: 0.88rem; white-space: nowrap;
+  border-bottom: 1px solid #2a2a5a; min-width: 160px;
+  position: sticky; right: 0; z-index: 2; background: #141428;
+}
+.habit-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-left: 8px; vertical-align: middle; }
+.check-cell { text-align: center; border-bottom: 1px solid #1a1a32; border-right: 1px solid #1a1a32; padding: 3px 2px; }
+.check-btn {
+  width: 26px; height: 26px; border-radius: 6px; border: 1.5px solid #3a3a6a;
+  background: #1a1a32; cursor: pointer; font-size: 0.9rem; display: inline-flex;
+  align-items: center; justify-content: center; transition: all .15s; color: transparent;
+}
+.check-btn:hover { border-color: #8888cc; background: #2a2a4a; }
+.check-btn.done { color: #fff; border-color: transparent; }
+.summary-cell { text-align: center; padding: 6px 8px; font-size: 0.8rem; font-weight: bold; color: #c8b4ff; min-width: 44px; }
+.pct-bar-cell { padding: 6px 10px; min-width: 90px; }
+.pct-bar-wrap { background: #1a1a32; border-radius: 99px; height: 8px; overflow: hidden; }
+.pct-bar-fill { height: 100%; border-radius: 99px; transition: width .4s; }
+.week-sep { border-right: 2px solid #4a4aaa !important; }
+
+.charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+.chart-card { background: #141428; border: 1px solid #2a2a5a; border-radius: 12px; padding: 20px; }
+.chart-card h3 { color: #a090ff; margin-bottom: 14px; font-size: 0.92rem; }
+.chart-container { position: relative; height: 210px; }
+.chart-card.wide { grid-column: 1 / -1; }
+
+.sync-status { text-align: center; padding: 6px; font-size: 0.8rem; color: #8888cc; }
+.sync-ok { color: #88cc88; }
+.sync-err { color: #ff8888; }
+
+@media (max-width: 600px) {
+  .stats-bar { grid-template-columns: repeat(2, 1fr); }
+  .charts-grid { grid-template-columns: 1fr; }
+  .chart-card.wide { grid-column: 1; }
+  .app-header { flex-direction: column; gap: 10px; text-align: center; }
+}
+</style>
+</head>
+<body>
+
+<!-- Auth Screen -->
+<div id="authScreen">
+  <div class="auth-box">
+    <h2>✦ Habit Tracker ✦</h2>
+    <p>عادت‌های روزانه‌ات رو دنبال کن</p>
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchTab('login')">ورود</button>
+      <button class="auth-tab" onclick="switchTab('signup')">ثبت‌نام</button>
+    </div>
+    <input class="auth-input" id="emailInput" type="email" placeholder="ایمیل" dir="ltr">
+    <div style="position:relative"><input class="auth-input" id="passInput" type="password" placeholder="رمز عبور" dir="ltr" style="padding-left:44px"><button onclick="togglePass()" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#8888cc;font-size:1.1rem" id="eyeBtn">👁️</button></div>
+    <button class="auth-btn" onclick="doAuth()">ورود</button>
+    <div class="auth-error" id="authError"></div>
+  </div>
+</div>
+
+<!-- Main App -->
+<div id="mainApp">
+  <div class="app-header">
+    <h1>✦ HABIT TRACKER ✦</h1>
+    <div class="user-info">
+      <span class="user-email" id="userEmail"></span>
+      <button class="btn-logout" onclick="doLogout()">خروج</button>
+    </div>
+  </div>
+
+  <div class="month-selector">
+    <span style="color:#a090ff;font-weight:bold">📅</span>
+    <select id="monthSel"></select>
+    <input type="number" id="yearSel" min="1400" max="1410" style="width:90px">
+  </div>
+
+  <div class="container">
+    <div class="stats-bar">
+      <div class="stat-card"><div class="val" id="s-today">0</div><div class="lbl">امروز ✓</div></div>
+      <div class="stat-card"><div class="val" id="s-week">0</div><div class="lbl">این هفته</div></div>
+      <div class="stat-card"><div class="val" id="s-total">0</div><div class="lbl">کل ماه</div></div>
+      <div class="stat-card"><div class="val" id="s-pct">0%</div><div class="lbl">پیشرفت کل</div></div>
+    </div>
+
+    <div class="habits-manager">
+      <div class="section-title">⚙️ مدیریت عادت‌ها</div>
+      <div class="habit-list-edit" id="habitListEdit"></div>
+      <button class="btn-add" onclick="addHabit()">+ افزودن عادت جدید</button>
+      <button class="btn-save-habits" onclick="saveHabitsToCloud()">☁️ ذخیره عادت‌ها در ابر</button>
+    </div>
+
+    <div class="sync-status" id="syncStatus"></div>
+
+    <div class="tracker-section">
+      <div class="section-title">📋 جدول روزانه</div>
+      <div class="tracker-wrap"><table id="trackerTable"></table></div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>🍩 پیشرفت کل ماه</h3>
+        <div class="chart-container"><canvas id="doughnutChart"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>📊 پیشرفت هر عادت</h3>
+        <div class="chart-container"><canvas id="barChart"></canvas></div>
+      </div>
+      <div class="chart-card wide">
+        <h3>📈 روند هفتگی</h3>
+        <div class="chart-container"><canvas id="lineChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function togglePass() { const p = document.getElementById("passInput"); const btn = document.getElementById("eyeBtn"); p.type = p.type === "password" ? "text" : "password"; btn.textContent = p.type === "password" ? "👁️" : "🙈"; }
+const SUPABASE_URL = 'https://gltnvrgnyzrroxhikkjj.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_GeGFnBk01_di9fq4zYOI9A_qaJ0ZHGX';
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const PALETTE = ['#8b5cf6','#06b6d4','#10b981','#f59e0b','#ef4444','#ec4899','#3b82f6','#84cc16','#f97316','#a855f7'];
+const MONTHS_FA = ['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
+const DAYS_IN_MONTH = [31,31,31,31,31,31,30,30,30,30,30,29];
+
+let currentUser = null;
+let authMode = 'login';
+let state = { year: 1404, month: 3, habits: [], checks: {}, nextId: 1 };
+let charts = {};
+let saveTimeout = null;
+
+const DEFAULT_HABITS = [
+  {id:1, name:'💧 خوردن ۸ لیوان آب', color:'#06b6d4'},
+  {id:2, name:'💪 ۳۰ دقیقه ورزش', color:'#ef4444'},
+  {id:3, name:'🛏️ ۸ ساعت خواب', color:'#8b5cf6'},
+  {id:4, name:'🚶 پیاده‌روی', color:'#10b981'},
+  {id:5, name:'🧘 ۱۵ دقیقه مدیتیشن', color:'#f59e0b'},
+  {id:6, name:'🍳 پختن غذا', color:'#f97316'},
+  {id:7, name:'📖 خوندن ۵ صفحه کتاب', color:'#a855f7'},
+];
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
+function switchTab(mode) {
+  authMode = mode;
+  document.querySelectorAll('.auth-tab').forEach((t,i) => {
+    t.classList.toggle('active', (i===0 && mode==='login') || (i===1 && mode==='signup'));
+  });
+  document.querySelector('.auth-btn').textContent = mode === 'login' ? 'ورود' : 'ثبت‌نام';
+  document.getElementById('authError').textContent = '';
+}
+
+async function doAuth() {
+  const email = document.getElementById('emailInput').value.trim();
+  const pass = document.getElementById('passInput').value;
+  const errEl = document.getElementById('authError');
+  errEl.textContent = '';
+  if (!email || !pass) { errEl.textContent = 'ایمیل و رمز را وارد کنید'; return; }
+
+  const btn = document.querySelector('.auth-btn');
+  btn.textContent = '...';
+  btn.disabled = true;
+
+  let result;
+  if (authMode === 'login') {
+    result = await sb.auth.signInWithPassword({ email, password: pass });
+  } else {
+    result = await sb.auth.signUp({ email, password: pass });
+  }
+
+  btn.disabled = false;
+  btn.textContent = authMode === 'login' ? 'ورود' : 'ثبت‌نام';
+
+  if (result.error) {
+    errEl.textContent = result.error.message;
+    return;
+  }
+  if (authMode === 'signup' && !result.data.session) {
+    errEl.style.color = '#88cc88';
+    errEl.textContent = 'ایمیل تأیید ارسال شد! بعد از تأیید وارد شوید.';
+    return;
+  }
+  currentUser = result.data.user;
+  await loadAndShowApp();
+}
+
+async function doLogout() {
+  await sb.auth.signOut();
+  currentUser = null;
+  document.getElementById('authScreen').style.display = 'flex';
+  document.getElementById('mainApp').style.display = 'none';
+}
+
+// ── Load data from Supabase ───────────────────────────────────────────────────
+async function loadAndShowApp() {
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('mainApp').style.display = 'block';
+  document.getElementById('userEmail').textContent = currentUser.email;
+
+  // Load habits
+  const { data: habitsData } = await sb.from('habits').select('*').eq('user_id', currentUser.id).order('position');
+  if (habitsData && habitsData.length > 0) {
+    state.habits = habitsData.map(h => ({ id: h.id, name: h.name, color: h.color }));
+    state.nextId = Math.max(...state.habits.map(h => h.id)) + 1;
+  } else {
+    state.habits = DEFAULT_HABITS.map(h => ({...h}));
+    state.nextId = 8;
+    await saveHabitsToCloud(true);
+  }
+
+  // Load checks for current month
+  await loadChecks();
+  initSelectors();
+  renderAll();
+}
+
+async function loadChecks() {
+  const { data } = await sb.from('checks')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .eq('year', state.year)
+    .eq('month', state.month);
+  state.checks = {};
+  if (data) data.forEach(r => { state.checks[`${r.habit_id}-${r.day}`] = 1; });
+}
+
+// ── Save ──────────────────────────────────────────────────────────────────────
+async function saveHabitsToCloud(silent = false) {
+  if (!currentUser) return;
+  const rows = state.habits.map((h, i) => ({
+    id: typeof h.id === 'number' && h.id < 1000 ? undefined : h.id,
+    user_id: currentUser.id,
+    name: h.name,
+    color: h.color,
+    position: i
+  }));
+  // delete old and re-insert
+  await sb.from('habits').delete().eq('user_id', currentUser.id);
+  const { data, error } = await sb.from('habits').insert(
+    state.habits.map((h, i) => ({ user_id: currentUser.id, name: h.name, color: h.color, position: i }))
+  ).select();
+  if (data) {
+    state.habits = data.map(h => ({ id: h.id, name: h.name, color: h.color }));
+  }
+  if (!silent) showSync(error ? '❌ خطا در ذخیره' : '✅ عادت‌ها ذخیره شد', !error);
+}
+
+async function toggleCheck(habitId, day) {
+  const key = `${habitId}-${day}`;
+  if (state.checks[key]) {
+    delete state.checks[key];
+    await sb.from('checks').delete()
+      .eq('user_id', currentUser.id).eq('habit_id', habitId)
+      .eq('year', state.year).eq('month', state.month).eq('day', day);
+  } else {
+    state.checks[key] = 1;
+    await sb.from('checks').upsert({
+      user_id: currentUser.id, habit_id: habitId,
+      year: state.year, month: state.month, day: day
+    });
+  }
+  renderAll();
+}
+
+function showSync(msg, ok = true) {
+  const el = document.getElementById('syncStatus');
+  el.textContent = msg;
+  el.className = 'sync-status ' + (ok ? 'sync-ok' : 'sync-err');
+  setTimeout(() => { el.textContent = ''; el.className = 'sync-status'; }, 3000);
+}
+
+// ── Selectors ─────────────────────────────────────────────────────────────────
+function initSelectors() {
+  const ms = document.getElementById('monthSel');
+  ms.innerHTML = '';
+  MONTHS_FA.forEach((m, i) => {
+    const o = document.createElement('option');
+    o.value = i+1; o.textContent = m;
+    if (i+1 === state.month) o.selected = true;
+    ms.appendChild(o);
+  });
+  document.getElementById('yearSel').value = state.year;
+  ms.onchange = async () => { state.month = +ms.value; await loadChecks(); renderAll(); };
+  document.getElementById('yearSel').onchange = async e => { state.year = +e.target.value; await loadChecks(); renderAll(); };
+}
+
+// ── Habit editor ──────────────────────────────────────────────────────────────
+function renderHabitEditor() {
+  const el = document.getElementById('habitListEdit');
+  el.innerHTML = '';
+  state.habits.forEach(h => {
+    const row = document.createElement('div');
+    row.className = 'habit-edit-row';
+    row.innerHTML = `
+      <div class="habit-color" style="background:${h.color}" onclick="cycleColor(${h.id}, this)"></div>
+      <input value="${h.name}" onchange="renameHabit(${h.id}, this.value)" placeholder="نام عادت...">
+      <button class="btn-remove" onclick="removeHabit(${h.id})">✕</button>`;
+    el.appendChild(row);
+  });
+}
+
+function addHabit() {
+  const color = PALETTE[state.habits.length % PALETTE.length];
+  state.habits.push({ id: Date.now(), name: '✨ عادت جدید', color });
+  renderHabitEditor();
+}
+
+function removeHabit(id) {
+  if (state.habits.length <= 1) return;
+  state.habits = state.habits.filter(h => h.id !== id);
+  renderAll();
+}
+
+function renameHabit(id, val) {
+  const h = state.habits.find(h => h.id === id);
+  if (h) h.name = val;
+  renderTable(); renderCharts();
+}
+
+function cycleColor(id, dotEl) {
+  const h = state.habits.find(h => h.id === id);
+  if (!h) return;
+  h.color = PALETTE[(PALETTE.indexOf(h.color) + 1) % PALETTE.length];
+  dotEl.style.background = h.color;
+  renderTable(); renderCharts();
+}
+
+// ── Table ─────────────────────────────────────────────────────────────────────
+function daysInMonth() { return DAYS_IN_MONTH[state.month - 1]; }
+function isChecked(hid, day) { return !!state.checks[`${hid}-${day}`]; }
+
+function weekIdx(d) { return d<=7?0:d<=14?1:d<=21?2:3; }
+const WEEK_COLORS = ['#1a1a4a','#1a2a3a','#1a3a2a','#2a1a3a'];
+const WEEK_NAMES  = ['هفته ۱','هفته ۲','هفته ۳','هفته ۴'];
+
+function renderTable() {
+  const days = daysInMonth();
+  const tbl = document.getElementById('trackerTable');
+  let html = '<thead><tr><th class="habit-name-cell" rowspan="2" style="background:#1a0a3a;color:#a090ff;text-align:right">عادت‌ها</th>';
+
+  // Week headers
+  const weekSpans = [7, 7, 7, days - 21];
+  weekSpans.forEach((span, wi) => {
+    if (wi === 3 && span <= 0) return;
+    const realSpan = wi < 3 ? Math.min(span, days - wi*7) : days - 21;
+    if (realSpan <= 0) return;
+    html += `<th colspan="${realSpan}" class="week-header${wi<3?' week-sep':''}" style="background:${WEEK_COLORS[wi]}">${WEEK_NAMES[wi]}</th>`;
+  });
+  html += '<th class="week-header" rowspan="2" style="background:#1a0a3a">جمع</th>';
+  html += '<th class="week-header" rowspan="2" style="background:#1a0a3a;min-width:90px">%</th></tr><tr>';
+
+  for (let d = 1; d <= days; d++) {
+    const sep = (d % 7 === 0 && d < days) ? ' week-sep' : '';
+    html += `<th class="day-header${sep}" style="background:${WEEK_COLORS[weekIdx(d)]}">${d}</th>`;
+  }
+  html += '</tr></thead><tbody>';
+
+  state.habits.forEach(h => {
+    let total = 0;
+    html += `<tr><td class="habit-name-cell"><span class="habit-dot" style="background:${h.color}"></span>${h.name}</td>`;
+    for (let d = 1; d <= days; d++) {
+      const checked = isChecked(h.id, d);
+      if (checked) total++;
+      const sep = (d % 7 === 0 && d < days) ? ' week-sep' : '';
+      const bg = checked ? h.color : WEEK_COLORS[weekIdx(d)];
+      html += `<td class="check-cell${sep}">
+        <button class="check-btn${checked?' done':''}" style="background:${bg}"
+          onclick="toggleCheck(${h.id},${d})">✓</button></td>`;
+    }
+    const pct = Math.round(total/days*100);
+    html += `<td class="summary-cell">${total}/${days}</td>
+      <td class="pct-bar-cell">
+        <div style="font-size:.75rem;color:#a090ff;margin-bottom:3px;text-align:center">${pct}%</div>
+        <div class="pct-bar-wrap"><div class="pct-bar-fill" style="width:${pct}%;background:${h.color}"></div></div>
+      </td></tr>`;
+  });
+  html += '</tbody>';
+  tbl.innerHTML = html;
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+function renderStats() {
+  const days = daysInMonth();
+  const today = new Date().getDate();
+  let todayCnt=0, weekCnt=0, totalCnt=0;
+  state.habits.forEach(h => {
+    for (let d=1;d<=days;d++) {
+      if (isChecked(h.id,d)) {
+        totalCnt++;
+        if (d===today) todayCnt++;
+        if (d>=today-6&&d<=today) weekCnt++;
+      }
+    }
+  });
+  const max = state.habits.length * days;
+  document.getElementById('s-today').textContent = todayCnt;
+  document.getElementById('s-week').textContent = weekCnt;
+  document.getElementById('s-total').textContent = totalCnt;
+  document.getElementById('s-pct').textContent = max>0?Math.round(totalCnt/max*100)+'%':'0%';
+}
+
+// ── Charts ─────────────────────────────────────────────────────────────────────
+function destroyChart(id) { if(charts[id]){charts[id].destroy();delete charts[id];} }
+
+function renderCharts() {
+  const days = daysInMonth();
+  const totalChecked = state.habits.reduce((a,h)=>{ for(let d=1;d<=days;d++) if(isChecked(h.id,d)) a++; return a; }, 0);
+  const maxTotal = state.habits.length * days;
+  const pct = maxTotal>0?Math.round(totalChecked/maxTotal*100):0;
+
+  destroyChart('doughnutChart');
+  charts.doughnut = new Chart(document.getElementById('doughnutChart'), {
+    type:'doughnut',
+    data:{ datasets:[{ data:[totalChecked,maxTotal-totalChecked], backgroundColor:['#8b5cf6','#1a1a3e'], borderWidth:0 }], labels:['تکمیل','باقی'] },
+    options:{ cutout:'72%', plugins:{ legend:{display:false} }, animation:{duration:600} },
+    plugins:[{ id:'center', afterDraw(c){ const{ctx,chartArea:{width,height,left,top}}=c; ctx.save(); ctx.font='bold 26px Arial'; ctx.fillStyle='#c8b4ff'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(pct+'%',left+width/2,top+height/2); ctx.font='12px Arial'; ctx.fillStyle='#8888cc'; ctx.fillText('پیشرفت',left+width/2,top+height/2+24); ctx.restore(); } }]
+  });
+
+  destroyChart('barChart');
+  charts.bar = new Chart(document.getElementById('barChart'), {
+    type:'bar',
+    data:{ labels:state.habits.map(h=>h.name.replace(/\p{Emoji}/gu,'')), datasets:[{ data:state.habits.map(h=>{ let c=0; for(let d=1;d<=days;d++) if(isChecked(h.id,d)) c++; return Math.round(c/days*100); }), backgroundColor:state.habits.map(h=>h.color+'bb'), borderColor:state.habits.map(h=>h.color), borderWidth:2, borderRadius:6 }] },
+    options:{ indexAxis:'y', plugins:{legend:{display:false}}, scales:{ x:{max:100,grid:{color:'#2a2a5a'},ticks:{color:'#8888cc',callback:v=>v+'%'}}, y:{grid:{display:false},ticks:{color:'#c8b4ff',font:{size:10}}} }, animation:{duration:500} }
+  });
+
+  destroyChart('lineChart');
+  const wRanges = [[1,7],[8,14],[15,21],[22,days]];
+  charts.line = new Chart(document.getElementById('lineChart'), {
+    type:'line',
+    data:{ labels:WEEK_NAMES, datasets:state.habits.map(h=>({ label:h.name.replace(/\p{Emoji}/gu,'').trim(), data:wRanges.map(([a,b])=>{ let c=0; for(let d=a;d<=b;d++) if(isChecked(h.id,d)) c++; return c; }), borderColor:h.color, backgroundColor:h.color+'22', tension:0.4, fill:false, pointRadius:4 })) },
+    options:{ plugins:{legend:{labels:{color:'#a090ff',font:{size:10},boxWidth:12}}}, scales:{ x:{grid:{color:'#2a2a5a'},ticks:{color:'#8888cc'}}, y:{grid:{color:'#2a2a5a'},ticks:{color:'#8888cc'},min:0} }, animation:{duration:500} }
+  });
+}
+
+function renderAll() {
+  renderHabitEditor();
+  renderTable();
+  renderStats();
+  renderCharts();
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+sb.auth.getSession().then(({ data }) => {
+  if (data.session) {
+    currentUser = data.session.user;
+    loadAndShowApp();
+  }
+});
+</script>
+</body>
+</html>
