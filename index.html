@@ -183,7 +183,6 @@ table { width: 100%; border-collapse: collapse; min-width: 700px; }
       <div class="section-title">⚙️ مدیریت عادت‌ها</div>
       <div class="habit-list-edit" id="habitListEdit"></div>
       <button class="btn-add" onclick="addHabit()">+ افزودن عادت جدید</button>
-      <button class="btn-save-habits" onclick="saveHabitsToCloud()">☁️ ذخیره عادت‌ها در ابر</button>
     </div>
 
     <div class="sync-status" id="syncStatus"></div>
@@ -404,6 +403,7 @@ function renderHabitEditor() {
 }
 
 function addHabit() {
+  // auto-save after short delay
   const color = PALETTE[state.habits.length % PALETTE.length];
   state.habits.push({ id: Date.now(), name: '✨ عادت جدید', color });
   renderHabitEditor();
@@ -416,6 +416,8 @@ function removeHabit(id) {
 }
 
 function renameHabit(id, val) {
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(() => saveHabitsToCloud(true), 1500);
   const h = state.habits.find(h => h.id === id);
   if (h) h.name = val;
   renderTable(); renderCharts();
