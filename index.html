@@ -215,7 +215,14 @@ function togglePass() { const p = document.getElementById("passInput"); const bt
 const SUPABASE_URL = 'https://gltnvrgnyzrroxhikkjj.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_GeGFnBk01_di9fq4zYOI9A_qaJ0ZHGX';
 const { createClient } = supabase;
-const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storage: window.localStorage
+  }
+});
 
 const PALETTE = ['#8b5cf6','#06b6d4','#10b981','#f59e0b','#ef4444','#ec4899','#3b82f6','#84cc16','#f97316','#a855f7'];
 const MONTHS_FA = ['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
